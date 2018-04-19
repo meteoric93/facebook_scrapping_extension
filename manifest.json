@@ -1,0 +1,44 @@
+{
+  "manifest_version": 2,
+
+  "name": "SocioleadsPro",
+  "description": "Extension to monitor Leads from social media groups. Used by 1000s of marketers globally.",
+  "version": "1.0.9",
+
+  "icons": {
+    "16": "Icon-16.png",
+    "48": "Icon-48.png",
+    "64": "Icon-64.png"
+  },
+  "permissions": [ "tabs", "https://*/*", "http://*/*" ],
+
+  "web_accessible_resources": [
+    "jquery.js",
+    "facebookSocioLeadsPro-script.js",
+    "linkedinSocioLeadsPro-script"
+  ],
+  "content_scripts": [
+    {
+      "matches": [ "http://*.facebook.com/*", "https://*.facebook.com/*" ],
+      "js": [
+        "jquery.js",
+        "facebookSocioLeadsPro-script.js"
+      ]
+    },
+    {
+      "matches": [ "http://*.linkedin.com/*", "https://*.linkedin.com/*" ],
+      "js": [ "jquery.js", "linkedinSocioLeadsPro-script.js" ]
+    }
+
+  ],
+  "browser_action": {
+    "default_icon": "logo.png",
+    "default_title": "SocioleadsPro monitor leads from social media groups"
+  },
+
+
+  "background": {
+    "scripts": [ "background.js" ],
+    "persistent": false
+  }
+}
