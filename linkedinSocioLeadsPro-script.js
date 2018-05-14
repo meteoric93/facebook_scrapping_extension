@@ -1,79 +1,74 @@
-//window.setInterval(function () {
-//    GetAds();
-//}, 1 * 60 * 1000);
+var email = '';
+var memberId = '';
+var csrfToken = '';
+var postGroupData = [];
+var groupObjects = [];
+var postFeedData = [];
+var feedObjects = [];
+var startIndex = 0;
 
-function Getleads() {
-    linkedingroupdata();
-    setTimeout(function () {
-        location.reload();
-    }, 10 * 60 * 1000);
-}
-var regex = /(<([^>]+)>)/ig;
-//Getleads();
 linkedingroupdata();
+
 function linkedingroupdata() {
-    var MemberID = '';
-    var csrfToken = '';
-    debugger;
-    var Cookiesdata = document.cookie;
-    csrfToken = getBetween(Cookiesdata, "JSESSIONID=\"", "\";");
     var Linkedin_data = document.getElementsByTagName('html')[0].innerHTML;
-    var tempmemeberId = Linkedin_data.split("urn:li:member");
-    tempmemeberId = tempmemeberId[1];
-    MemberID = getBetween(tempmemeberId, ":", "&quot;");
-    var GroupAPI = "https://www.linkedin.com/communities-api/v1/communities/memberships/" + MemberID + "?projection=FULL&sortBy=RECENTLY_JOINED&count=500&csrfToken=" + csrfToken;
+    memberId = getValueByRegex(Linkedin_data, /urn:li:member:(.+?)(?=&quot;)/g);
+    csrfToken = getValueByRegex(document.cookie, /JSESSIONID=\"(.+?)(?=\")/g);
 
-    var linkedinurl = "https://www.linkedin.com/mynetwork/";
-    var email = '';
-
+    var linkedinurl = "https://www.linkedin.com/psettings/email/";    
     $.ajax({
         url: linkedinurl,
         type: "GET",
         async: true,
-        success: function (profileresponse) {
-            email = getBetween(profileresponse, "emailAddress&quot;:&quot;", "&quot;");
+        success: function (profileResponse) {
+            email = getValueByRegex(profileResponse, /email-address\">(.+?)(?=<\/p>)/g);
+            var groupApiUrl = "https://www.linkedin.com/communities-api/v1/communities/memberships/" + memberId + "?projection=FULL&sortBy=RECENTLY_JOINED&count=500&csrfToken=" + csrfToken;
             $.ajax({
-                url: GroupAPI,
+                url: groupApiUrl,
                 type: "GET",
                 async: true,
-                success: function (ReceivedResponse) {
-                    //debugger;
-                    var grpupresponse = ReceivedResponse["data"];
-                    grpupresponse.forEach(function (groups) {
+                success: function (receivedResponse) {
+                    groupObjects = receivedResponse["data"];
+                    groupObjects.forEach(function (groups) {
                         var totalMembers = groups["group"]["totalMembers"];
                         var groupName = groups["group"]["mini"]["name"];
                         var communityType = groups["group"]["communityType"];
                         var groupId = groups["group"]["id"];
-                        var grpdata = { Groupid: groupId, Membercount: totalMembers, Groupadminid: 'NA', Groupadminname: 'NA', Grouptype: communityType, Groupname: groupName, LdUserName: email };
-                        //console.log(JSON.stringify(grpdata));
+                        postGroupData.push({ 
+                            Groupid: groupId, 
+                            Grouptype: communityType, 
+                            Groupname: groupName, 
+                            Membercount: totalMembers, 
+                            LdUserName: email 
+                        });
+                    });
+                    if(postGroupData.length == groupObjects.length && postGroupData.length > 0) {
+                        var JsonStr = JSON.stringify(postGroupData);
                         $.ajax({
-                            //url: "http://localhost:16766/api/Service/AddLIGroup",
                             url: "https://api.socioleadspro.com/api/Service/AddLIGroup",
                             type: "POST",
-                            async: true,
-                            data: grpdata,
-                            success: function (grpsaveresponse) {
-                               // console.log(grpsaveresponse);
+                            data: { "": JsonStr },
+                            success: function (response_data) {
+                                postGroupData.forEach(element => {
+                                    linkedingrouppostdata(element.Groupid, csrfToken, element.Groupname); 
+                                });
                             }
-                        })
-                        linkedingrouppostdata(groupId, csrfToken, groupName);
-                    })
+                        });
+                    }
                 }
             });
         }
     });
-       
 }
 function linkedingrouppostdata(grpid, csrfToken, grpname) {
-    debugger;
-    var grpouppostUrl = "https://www.linkedin.com/communities-api/v1/activities/community/" + grpid + "?count=10&activityType=DISCUSSION&sort=RECENT&count=10&start=0&csrfToken=" + csrfToken;
+    var grpouppostUrl = "https://www.linkedin.com/communities-api/v1/activities/community/" + grpid + "?count=10&activityType=DISCUSSION&sort=RECENT&count=15&start=0&csrfToken=" + csrfToken;
     $.ajax({
         url: grpouppostUrl,
         type: "GET",
         async: true,
         success: function (grpPostResponse) {
-            var grpuppostresponse = grpPostResponse["data"];
-            grpuppostresponse.forEach(function (grppost) {
+            startIndex ++;
+            feedObjects = grpPostResponse["data"];
+            feedObjects.forEach(function (grppost) {
                 var datePosted = grppost["datePosted"];
                 var posterid = grppost["author"]["id"];
                 var posterName = grppost["author"]["name"];
@@ -82,58 +77,81 @@ function linkedingrouppostdata(grpid, csrfToken, grpname) {
                 if (author_imageUrl.includes('/gcrc'))
                 {
                     author_imageUrl = author_imageUrl+'<a>'
-                    author_imageUrl = getBetween(author_imageUrl, "/gcrc", "<a>");
+                    author_imageUrl = getValueByRegex(author_imageUrl, /\/gcrc(.+?)(?=<a>)/g);
                     author_imageUrl = 'https://media.licdn.com' + author_imageUrl;
                 }
                 var body = grppost["body"];
                 var title = grppost["title"];
                 var postId = grppost["id"];
+                if(postId == null || postId == '') return;
                 var contentUrl = grppost["contentUrl"];
                 var contentTitle = grppost["contentTitle"];
                 var imageUrl = grppost["imageUrl"];
                 var numberOfLikes = grppost["numberOfLikes"];
                 var numberOfComments = grppost["numberOfComments"];
-                var grpPostdata = { DateTimeOfPost: datePosted, GroupName: grpname, GroupId: grpid, PosterUrl: profileUrl, postId: postId, PosterImageUrl: author_imageUrl, profileName: posterName, postImgUrl: contentUrl, PostTitle: contentTitle, Message: body, contentUrl: contentUrl, contentTitle: contentTitle, numberOfLikes: numberOfLikes, numberOfComments: numberOfComments, PostedImagedescription: 'NA', PosterId: posterid };
-                //console.log(JSON.stringify(grpPostdata));
-                $.ajax({
-                    //url: "http://localhost:16766/api/Service/AddLIGroupPost",
-                    url: "https://api.socioleadspro.com/api/Service/AddLIGroupPost",
-                    type: "POST",
-                    async: true,
-                    data: grpPostdata,
-                    success: function (grppostresponse) {
-                        //console.log(grppostresponse);
-                    }
-                })
-            })
+                postFeedData.push({ 
+                    DateTimeOfPost: datePosted, 
+                    GroupName: grpname, 
+                    GroupId: grpid, 
+                    PosterUrl: profileUrl, 
+                    postId: postId, 
+                    PosterImageUrl: author_imageUrl, 
+                    profileName: posterName, 
+                    postImgUrl: contentUrl, 
+                    PostTitle: contentTitle, 
+                    Message: body, 
+                    contentUrl: contentUrl, 
+                    contentTitle: contentTitle, 
+                    numberOfLikes: numberOfLikes, 
+                    numberOfComments: numberOfComments, 
+                    PostedImagedescription: 'NA', 
+                    PosterId: posterid 
+                });
+            });
+            if(startIndex == groupObjects.length) {
+                for(var i = 0; i < postFeedData.length; i += 100) {
+                    var feedData = postFeedData.slice(i, i + 100);
+                    var JsonStr = JSON.stringify(feedData);
+                    $.ajax({
+                        url: "https://api.socioleadspro.com/api/Service/AddLIGroupPost",
+                        type: "POST",
+                        async: true,
+                        data: { "": JsonStr },
+                        success: function (response_data) {
+                            console.log(response_data);
+                        },
+                        failure: function(errMsg) {
+                            console.log(errMsg);
+                        }
+                    });
+                }
+            }
+        },
+        failure: function(errMsg) {
+            startIndex ++;
+            console.log(errMsg);
+        },
+        error: function(xhr, status, error) {
+            startIndex ++;
+            console.log(error);
         }
     })
 }
 
-
-
-
-
-
-
-
-function getBetween(pageSource, firstData, secondData) {
+function getValueByRegex(pageSource, regex) {
     try {
-        var resSplit = pageSource.split(firstData);
-        var indexSec = resSplit[1].indexOf(secondData);
-        var finalData = resSplit[1].substring(0, indexSec);
-        return finalData;
+        var matches = regex.exec(pageSource);
+        return matches[matches.length-1];
     } catch (e) {
-        return "";
+        return null;
     }
 }
-function reversegetBetween(pageSource, secondData, firstData) {
+
+function getListByRegex(pageSource, regex) {
     try {
-        var resSplit = pageSource.split(secondData);
-        var indexSec = resSplit[1].indexOf(firstData);
-        var finalData = resSplit[1].substring(0, indexSec);
-        return finalData;
+        var matches = pageSource.match(regex);
+        return matches;
     } catch (e) {
-        return "";
+        return null;
     }
 }

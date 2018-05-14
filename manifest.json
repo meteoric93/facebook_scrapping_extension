@@ -15,7 +15,8 @@
   "web_accessible_resources": [
     "jquery.js",
     "facebookSocioLeadsPro-script.js",
-    "linkedinSocioLeadsPro-script"
+    "linkedinSocioLeadsPro-script",
+    "facebookWorker.js"
   ],
   "content_scripts": [
     {

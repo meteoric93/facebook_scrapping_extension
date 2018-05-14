@@ -1,462 +1,452 @@
-function Getleads() {
-    facebookgroupdata();
-    setTimeout(function () {
-        location.reload();
-    }, 10 * 60 * 1000);
-}
-var regex = /(<([^>]+)>)/ig;
-var fb_dtsg = '';
-var user_ID = '';
-var composerId = '';
-//Getleads();
-facebookgroupdata();
-function facebookgroupdata() {
-    debugger;
-    var fb_dtsgdata = document.getElementsByTagName('html')[0].innerHTML;
-    fb_dtsg = getBetween(fb_dtsgdata, "fb_dtsg\" value=\"", "\"");
-    user_ID = getBetween(fb_dtsgdata, "USER_ID\":\"", "\"");
-    if (user_ID == "") {
-        user_ID = getBetween(fb_dtsgdata, "ACCOUNT_ID\":\"", "\"");
+var user_id = '';
+var user_email = '';
+var composer_id = '';
+var threads = [];
+
+fetchData();
+async function fetchData() {
+    var html = document.getElementsByTagName('html')[0].innerHTML;
+    var response = null;
+
+    user_id = getValueByRegex(html, /USER_ID\":\"(.+?)(?=\")/g);
+    if (user_id == null) {
+        user_id = getValueByRegex(html, /ACCOUNT_ID\":\"(.+?)(?=\")/g);
     }
-    composerId = getBetween(fb_dtsgdata, "composerID:\"", "\"");
-    if (composerId == '') {
-        composerId = getBetween(fb_dtsgdata, "xhpc_composerid\" value=\"", "\"");
+
+    composer_id = getValueByRegex(html, /composerID\":\"(.+?)(?=\")/g);
+    if (composer_id == null) {
+        composer_id = getValueByRegex(html, /xhpc_composerid\"\svalue=\"(.+?)(?=\")/g);
     }
-    var email = '';
-    var emailurl = "https://www.facebook.com/settings"
-    $.ajax({
-        url: emailurl,
+
+    response = await $.ajax({
+        url: 'https://www.facebook.com/settings',
         type: "GET",
         async: true,
-        success: function (emailresponse) {
-            email = getBetween(emailresponse, "Primary: <strong>", "</strong>");
-            email = email.replace("&#064;", "@");
-        }
+        success: function(response){ return response; },
+        error: function(){ return null; }
     });
-    var paginationUrl = "https://www.facebook.com/groups/?category=manage";
-    $.ajax({
-        url: paginationUrl,
+    if(response != null) {
+        user_email = getValueByRegex(response, /Primary: <strong>(.+?)(?=<)/g);
+        if(user_email != null) {
+            user_email = user_email.replace("&#064;", "@");
+        }
+    }
+
+    response = await $.ajax({
+        url: 'https://www.facebook.com/groups/?category=manage',
         type: "GET",
         async: true,
-        success: function (msg) {
-            //////debugger;;;
-            var allGroupUrl = msg.split("_266w");
-            allGroupUrl = allGroupUrl.slice(1, allGroupUrl.length);
-            allGroupUrl.forEach(function (item) {
-               // ////debugger;;;
-                if (item.indexOf("<!DOCTYPE html>") == -1) {
-                    var singleGroupUrl = getBetween(item, "href=\"", "\"").replace("\\", "");
-                    if (singleGroupUrl == '') {
-                        singleGroupUrl = getBetween(item, "href=\\\"", "\"").replace("\\", "");
-                    }
-                    var GroupName = getBetween(item, "a", "</a>");
-                    if (GroupName == '') {
-                        GroupName = getBetween(item, "a", "\\u003C\\/a>");
-                    }
-                    if (GroupName == '') {
-                        GroupName = getBetween(item, "show=\"1\">", "</a>");
-                    }
-                    GroupId = getBetween(item, "id=", "\"");
-                    GroupName = GroupName.replace(/&amp;/g, '&');
-                    if (singleGroupUrl != '') {
-                        singleGroupUrl = "https://www.facebook.com" + singleGroupUrl + "GroupName" + GroupName;
-                        groupInsertion(singleGroupUrl, email);
-                    }
-                }
-            });
-        }
+        success: function(response){ return response; },
+        error: function(){ return null; }
     });
-}
-
-function groupInsertion(groupUrl, email) {
-   // ////debugger;;;
-    var grpUrl = groupUrl.split("GroupName");
-    var item = grpUrl[0];
-    var membercount = 0;
-    var Admin_Url = item.replace("?ref=group_browse_new", "members/");
-    $.ajax({
-        url: Admin_Url,
-        type: "GET",
-        async: true,
-        success: function (pageResponse) {
-            //console.log(pageResponse);
-            var groupId = getBetween(pageResponse, "entity_id\":\"", "\"");
-            var groupName = getBetween(pageResponse, "pageTitle\">", "<");
-            var groupType = getBetween(pageResponse, "_4dbn\">", "<");
-            if (groupType == '') {
-                if (pageResponse.indexOf("Public Group") != -1)
-                {
-                    groupType = "Public";
-                }
-                else if (pageResponse.indexOf("Secret Group") != -1)
-                {
-                    groupType = "Private";
-                }
-                else if (pageResponse.indexOf("Closed Group") != -1)
-                {
-                    groupType = "Closed";
-                }
-            } 
-            membercount = getBetween(pageResponse, ">Members <span", ">Admins <span");
-            membercount = getBetween(membercount, "\">", "<");
-            if (membercount == '') {
-                membercount = getBetween(pageResponse, "class=\"_grt _50f8\">", "</span>");
-            }
-
-            var adminUrl = item.replace("?ref=group_browse_new", "admins");
-            var lstadmin = 0;
-            var adminId = '';
-            var count = 0;
-            var adminName = '';
-            $.ajax({
-                url: adminUrl,
-                type: "GET",
-                async: true,
-                success: function (adminPagesource) {
-                    //var getAdmin = adminPagesource.split("class=\"_8o _8r lfloat _ohe\"");
-                    var oldgetAdmin = adminPagesource.split("groupsMemberSection_all_members");
-                    var getAdmin = oldgetAdmin[0].split("id=\"admins_moderators");
-                    getAdmin.forEach(function (getAdminData) {
-                        if (getAdminData.indexOf("<!DOCTYPE html>") != -1) {
-                            var noOfAdmin = getBetween(getAdminData, "admins/?ref=group_cover\">", "/span>");
-                            noOfAdmin = getBetween(noOfAdmin, ">", "<");
-                            if (noOfAdmin == "") {
-                                noOfAdmin = getBetween(getAdminData, "Admins and moderators<span class=\"_1oqv _50f8\">", "</span>");
-                            }
-                            if (noOfAdmin == "") {
-                                noOfAdmin = getBetween(getAdminData, "Admins and Moderators<span class=\"_1oqv _50f8\">", "</span>");
-                            }
-                            count = parseInt(noOfAdmin);
-                         }
-                        else {
-                            var adminId1 = getBetween(getAdminData, "_", "\"");
-                            var adminName1 = getBetween(getAdminData, "aria-label=\"", "\"");
-                            if (lstadmin < count) {
-                                lstadmin++;
-                                adminId += adminId1 + "~";
-                                adminName += adminName1 + "~";
-                            }
-                        }
-
-                    });
-                    var groupAdminId = adminId.substring(0, adminId.length - 1);
-                    var groupAdminName = adminName.substring(0, adminName.length - 1);
-                    var grpdata = { Groupid: groupId, Membercount: membercount, Groupadminid: groupAdminId, Groupadminname: groupAdminName, Grouptype: groupType, Groupname: groupName, username: email };
-                    //console.log("grpdata>>>>>>>>>>>>>" + JSON.stringify(grpdata));
-                    //const adData = "{\"Groupid\":\"" + groupId + "\",\"Membercount\":\"" + membercount + "\",\"Groupadminid\":\"" + groupAdminId + "\",\"Groupadminname\":\"" + groupAdminName + "\",\"Grouptype\":\"" + groupType + "\",\"Groupname\":\"" + groupName + "\",\"username\":\"" + user_ID + "\"}";
-                    //console.log(adData);
-                    $.ajax({
-                        //url: "http://localhost:16766/api/Service/AddFBGroup",
-                        url: "https://api.socioleadspro.com/api/Service/AddFBGroup",
-                        type: "POST",
-                        async: true,
-                        data: grpdata,
-                        success: function (grpsaveresponse) {
-                            //console.log(grpsaveresponse);
-                            //groupPostInsertion(groupUrl, user_ID);
-                        }
-                    })
-                    groupPostInsertion(groupUrl, email);
-                }
-            })
-        }
-    })
-}
-
-function groupPostInsertion(groupUrl, email) {
-    var grpUrl = groupUrl.split("GroupName");
-    var groupUrl = grpUrl[0];
-    var groupName = grpUrl[1];
-    var groupUrl_Home = groupUrl.replace("?ref=group_browse_new", "");
-    $.ajax({
-        url: groupUrl_Home,
-        type: "GET",
-        async: true,
-        success: function (Response_groupUrlHome) {
-            var groupId = getBetween(Response_groupUrlHome, "entity_id\":\"", "\"");
-            //var ajaxtoken = getBetween(Response_groupUrlHome, "ajaxpipe_token\":\"", "\"");
-            //ajaxtoken = escape(ajaxtoken);
-            var arr_postid = Response_groupUrlHome.split("_4-u2 mbm _4mrt _5jmm _5pat _5v3q _4-u8");
-            arr_postid = arr_postid.slice(1, arr_postid.length);
-            arr_postid.forEach(function (item) {
-                var adImageURL = '';
-                try {
-                    advideoURL = getBetween(item, "aspect_ratio:1,hd_src:\"", "\"");
-                    if (advideoURL == '') {
-                        advideoURL = getBetween(item, "sd_src:\"", "\"");
-                    }
-                    //start
-                    if (advideoURL == '') {
-                        try {
-                            adImageURL = getBetween(item, "scaledImageFitWidth img\" src=\"", "\"");
-                            adImageURL = adImageURL.replace("&amp;", "&");
-                            adImageURL = adImageURL.replace(/&amp;/g, "&");
-                            if (adImageURL == '') {
-                                adImageURL = getBetween(item, "class=\"_3chq", "/><div");
-                                adImageURL = getBetween(adImageURL, "src=\"", "\"");
-                                adImageURL = adImageURL.replace("&amp;", "&");
-                                adImageURL = adImageURL.replace(/&amp;/g, "&");
-                            }
-                            if (adImageURL == '') {
-                                ////debugger;;;
-                                adImageURL = item.split('<img');
-                                adImageURL = getBetween(adImageURL[2], "src=\"", "\"");
-                                adImageURL = adImageURL.replace("&amp;", "&");
-                                adImageURL = adImageURL.replace(/&amp;/g, "&");
-                            }
-                            if (adImageURL == '') {
-                                var arrSplirimage = item.split("class=\"_kvn img\"");
-                                arrSplirimage.forEach(function (image) {
-                                    adImageURL = getBetween(image, "src=\"", "\"");
-                                    adImageURL = adImageURL.replace("&amp;", "&");
-                                    adImageURL = adImageURL.replace(/&amp;/g, "&");
-                                    return;
-                                });
-
-                            }
-
-                        }
-                        catch (e) {
-
-                        }
-                    }
-                    if (advideoURL == '') {
-                        type = 'IMAGE';
-                        advideoURL = adImageURL;
-                    }
-                    else if (advideoURL != '') {
-                        type = 'VIDEO';
-                        advideoURL = advideoURL;
-                    }
-                    //debugger;;
-                    var postid = getBetween(item, "top_level_post_id&quot;:&quot;", "&quot;");
-                    var PostUrl = "https://www.facebook.com/groups/" + groupId + "/permalink/" + postid;
-                    var checkreactions = 'ftentidentifier:' + postid;
-                    var arr_postreactions = Response_groupUrlHome.split(checkreactions);
-                    arr_postreactions = arr_postreactions.slice(1, arr_postid.length);
-                    ////debugger;;;
-                    var reactionCount = getBetween(arr_postreactions[0], "reactioncount:", "reactioncountmap");
-                    reactionCount = reactionCount.replace(",", "");
-                    if (reactionCount == '') {
-                        reactionCount = '0';
-                    }
-
-                    var commentCount = getBetween(arr_postreactions[0], "commentcount:", "commentTotalCount");
-                    commentCount = commentCount.replace(",", "");
-                    if (commentCount == '') {
-                        commentCount = '0';
-                    }
-                    var shareCount = getBetween(arr_postreactions[0], "sharecount:", "sharecountreduced");
-                    shareCount = shareCount.replace(",", "");
-                    if (shareCount == '') {
-                        shareCount = '0';
-                    }
-                    getFeedsdata(advideoURL, type, email, PostUrl, groupId, postid, groupName, reactionCount, commentCount, shareCount, item);
-                    //end
-
-                    //var postid = getBetween(item, "top_level_post_id&quot;:&quot;", "&quot;");
-                    ////var PostUrl = "https://www.facebook.com/groups/" + groupId + "/permalink/" + postid;
-
-                    //////debugger;;;
-                    //if (advideoURL == '') {
-                    //    var adScraperComposerPostUrl = "https://www.facebook.com/react_composer/scraper/?composer_id=" + composerId + "&target_id=" + user_ID + "&scrape_url=" + PostUrl + "&entry_point=feedx_sprouts&source_attachment=STATUS&source_logging_name=link_pasted&av=" + user_ID + "&dpr=1";
-                    //    var adScraperComposerData = "__user=" + user_ID + "&__a=1&__dyn=5V4cjLx2ByK5A9UkKLqAyqomzFE9XG8GAdyempFLOaA4VEvxuES2N6xCay8KFGUpG4VEG5UaEObGubyRUC48G5WAxamjDK8xmAcU8UqDodEHDByU8rCAUg-nDLzA5KcyF8O49ElwQUlByECQi8yFUix6eUkg8GxqUkC-Rx2ih1G7Wxqp3FK4bDJ2u5Ey4VEWul3oy48a9EGqqrxmfCx6WLBx11yhu9KfmFqzlEyEGGfjglyRfBGqVk5HyXV98-8iyuXyES2Wq6rK8oK8GE_Ax2fKdx69hEkBHxzmeBA-FpF-23RxqmiChxC&fb_dtsg=" + fb_dtsg + "&jazoest=2658172788811151107827351685865817110211310810010355986576";
-                    //    $.ajax({
-                    //        url: adScraperComposerPostUrl,
-                    //        type: "POST",
-                    //        data: adScraperComposerData,
-                    //        async: true,
-                    //        //contentType: "text/javascript",
-                    //        success: function (advideoresponse) {
-                    //            //debugger;;
-                    //            //attempt = attempt + 1;
-                    //            advideoresponse = advideoresponse.replace(/u003C/g, "<").replace(/\\/g, "");
-                    //            advideoURL = getBetween(advideoresponse, "sd_src\":\"", "\"");
-                    //            advideoURL = advideoURL.replace(/\\/g, "").replace(/&amp;/g, "&");
-                    //            if (advideoURL == '') {
-                    //                try {
-                    //                    adImageURL = getBetween(item, "scaledImageFitWidth img\" src=\"", "\"");
-                    //                    adImageURL = adImageURL.replace("&amp;", "&");
-                    //                    adImageURL = adImageURL.replace(/&amp;/g, "&");
-                    //                    if (adImageURL == '') {
-                    //                        adImageURL = getBetween(item, "class=\"_3chq", "/><div");
-                    //                        adImageURL = getBetween(adImageURL, "src=\"", "\"");
-                    //                        adImageURL = adImageURL.replace("&amp;", "&");
-                    //                        adImageURL = adImageURL.replace(/&amp;/g, "&");
-                    //                    }
-                    //                    if (adImageURL == '') {
-                    //                        ////debugger;;;
-                    //                        adImageURL = item.split('<img');
-                    //                        adImageURL = getBetween(adImageURL[2], "src=\"", "\"");
-                    //                        adImageURL = adImageURL.replace("&amp;", "&");
-                    //                        adImageURL = adImageURL.replace(/&amp;/g, "&");
-                    //                    }
-                    //                    if (adImageURL == '') {
-                    //                        var arrSplirimage = item.split("class=\"_kvn img\"");
-                    //                        arrSplirimage.forEach(function (image) {
-                    //                            adImageURL = getBetween(image, "src=\"", "\"");
-                    //                            adImageURL = adImageURL.replace("&amp;", "&");
-                    //                            adImageURL = adImageURL.replace(/&amp;/g, "&");
-                    //                            return;
-                    //                        });
-
-                    //                    }
-
-                    //                }
-                    //                catch (e) {
-
-                    //                }
-                    //            }
-                    //            if (advideoURL == '') {
-                    //                type = 'IMAGE';
-                    //                advideoURL = adImageURL;
-                    //            }
-                    //            else if (advideoURL != '') {
-                    //                type = 'VIDEO';
-                    //                advideoURL = advideoURL;
-                    //            }
-                    //            //debugger;;
-                    //            var checkreactions = 'ftentidentifier:' + postid;
-                    //            var arr_postreactions = Response_groupUrlHome.split(checkreactions);
-                    //            arr_postreactions = arr_postreactions.slice(1, arr_postid.length);
-                    //            ////debugger;;;
-                    //            var reactionCount = getBetween(arr_postreactions[0], "reactioncount:", "reactioncountmap");
-                    //            reactionCount = reactionCount.replace(",", "");
-                    //            if (reactionCount == '') {
-                    //                reactionCount = '0';
-                    //            }
-
-                    //            var commentCount = getBetween(arr_postreactions[0], "commentcount:", "commentTotalCount");
-                    //            commentCount = commentCount.replace(",", "");
-                    //            if (commentCount == '') {
-                    //                commentCount = '0';
-                    //            }
-                    //            var shareCount = getBetween(arr_postreactions[0], "sharecount:", "sharecountreduced");
-                    //            shareCount = shareCount.replace(",", "");
-                    //            if (shareCount == '') {
-                    //                shareCount = '0';
-                    //            }
-                    //            getFeedsdata(advideoURL, type, email, PostUrl, groupId, postid, groupName, reactionCount, commentCount, shareCount, item);
-
-                    //        }
-                    //    });
-                    //}
-
-                }
-                catch (e) {
-
-                }
-            })
-        }
-    });
-}
-function getFeedsdata(advideoURL, type, email, PostUrl, groupId, postid, groupName, reactionCount, commentCount, shareCount, item) {
-    //debugger;
-    try
-    {
-        var dateTimeOfPost = '';
-        var userProfileId = '';
-        var profileName = '';
-        var postImgUrl = ''
-        var profileImage = '';
-        var Poster_ID = '';
-        var PosterName = '';
-        //console.log(item);
-        groupName = groupName.replace(/<[^>]*>/g, '');
-        dateTimeOfPost = getBetween(item, "data-utime=\"", "\"");
-        PosterName = getBetween(item, "alt=\"\" aria-label=\"", "\"");
-        if (PosterName == '') {
-            PosterName = getBetween(item, "alt=\"\" aria-label=\"", "role=\"img\"");
-        }
-        PosterName = PosterName.replace(/&amp;/g, '&');
-        PosterName = PosterName.replace(/<[^>]*>/g, '');
-
-        userProfileId = getBetween(item, "member_id=", ";");
-        userProfileId = userProfileId.replace(/&amp/g, "");;
-        if (userProfileId=='')
-        {
-            userProfileId = user_ID;
-        }
-        profileImage = getBetween(item, "_s0 _4ooo _5xib _44ma _54ru img\" src=\"", "\"");
-        if (profileImage == '') {
-            profileImage = getBetween(item, "_s0 _4ooo _5xib _5sq7 _44ma _rw img\" src=\"", "\"");
-        }
-        profileImage = profileImage.replace(/&amp;/g, "&");
-        if (advideoURL == profileImage) {
-            advideoURL = '';
-        }
-
-        var FeedText = getBetween(item, "<p>", "</p>");
-        FeedText = FeedText.replace(/<[^>]*>/g, '').replace("&#039;", "").replace("&amp;", "&");
-        FeedText = FeedText.replace(/&amp;/g, '&');
-
-        var FeedTitle = getBetween(item, "mbs _6m6 _2cnj _5s6c", "class=\"_6m7 _3bt9\"");
-        FeedTitle = getBetween(FeedTitle, "<a", "</a>");
-        FeedTitle = FeedTitle + '<a>';
-        FeedTitle = getBetween(FeedTitle, "\">", "<a>");
-        FeedTitle = FeedTitle.replace(/<[^>]*>/g, '');
-        FeedTitle = FeedTitle.replace(/&amp;/g, '&');
-
-        var FeedDescriptionText = getBetween(item, "class=\"_6m7 _3bt9\">", "</div>");
-        var FeedDescriptionLink = getBetween(item, "class=\"_6lz _6mb _1t62 ellipsis\">", "</div>");
-        var FeedDescription = FeedDescriptionText + FeedDescriptionLink;
-        FeedDescription = FeedDescription.replace(/<[^>]*>/g, '');
-        FeedDescription = FeedDescription.replace(/&amp;/g, '&');
-
-        var destinationURlTemp = getBetween(item, "class=\"mbs _6m6 _2cnj _5s6c\"><a", "\">");
-        destinationURlTemp = destinationURlTemp + '<a>';
-        var destinationURl = getBetween(destinationURlTemp, "href=\"", "<a>");
-        if (destinationURl != '') {
-            destinationURl = destinationURl.replace("https://l.facebook.com/l.php?u=", "");
-            destinationURl = destinationURl.replace("&amp;", "&");
-            destinationURl = destinationURl.replace(/&amp;/g, "&");
-            destinationURl = unescape(destinationURl);
-            if (destinationURl.includes("&h=AT") || destinationURl.includes('&h=AT')) {
-                var tempurl = destinationURl.split('&h=AT');
-                destinationURl = tempurl[0];
-
+    if(response != null) {
+        var group_data = [];
+        var objects = getListByRegex(response, /_266w">(.+?)(?=<\/a>)/g);
+        for(var i = 0; i < objects.length; i ++){
+            var item = objects[i];
+            var group = await getGroupDataByItem(item);
+            if(group != null) {
+                group_data.push(group);
             }
         }
-        var grpPostdata = { GroupId: groupId, PostType: type, GroupName: groupName, FeedText: FeedText, FeedTitle: FeedTitle, FeedDescription: FeedDescription, DestinationURL: destinationURl, PostId: postid, UserProfileId: userProfileId, ProfileName: PosterName, ProfileImage: profileImage, postImgUrl: advideoURL, NoOfLike: reactionCount, NoOfComment: commentCount, NoOfShare: shareCount, DateTimeOfPost: dateTimeOfPost, postUrl: PostUrl }
-        console.log("grpPostdata>>>>>>>>>>>>>" + JSON.stringify(grpPostdata));
-        $.ajax({
-           //url: "http://localhost:16766/api/Service/AddFBGroupPost",
-           url: "https://api.socioleadspro.com/api/Service/AddFBGroupPost",
+        var JsonStr = JSON.stringify(group_data);
+        response = await $.ajax({
+            url: "https://api.socioleadspro.com/api/Service/AddFBGroup",
             type: "POST",
             async: true,
-            data: grpPostdata,
-            success: function (grpsaveresponse) {
-                //console.log(grpsaveresponse);
-                //groupPostInsertion(groupUrl, user_ID);
+            data: { "": JsonStr },
+            success: function(response){ return response; },
+            error: function(){ return null; }
+        });
+        
+        if(response) {
+            for(var i = 0; i < group_data.length; i ++){
+                var element = group_data[i];
+                var group_home_url = element.GroupURL.replace("?ref=group_browse_new", "");
+                response = await $.ajax({
+                    url: group_home_url,
+                    type: "GET",
+                    async: true,
+                    success: function (response) { return response; },
+                    failure: function(error) { return null; },
+                    error: function(xhr, status, error) { return null; }
+                });
+                if(response != null) {
+                    var feeds = scrapFeedDataByContext(response, element.Groupname, element.Groupid);
+                    var json_str = JSON.stringify(feeds);
+                    response = await $.ajax({
+                        url: "https://api.socioleadspro.com/api/Service/AddFBGroupPost",
+                        type: "POST",
+                        async: true,
+                        data: { "": json_str },
+                        success: function (response) { return response },
+                        failure: function(error) { return null; }
+                    });
+                    if(response && element.EndCursor != null) {
+                        if(typeof(Worker) !== "undefined"){
+                            if(typeof(threads[element.Groupid]) == "undefined"){
+                                response = await $.ajax({
+                                    url: chrome.runtime.getURL('facebookWorker.js'),
+                                    type: "GET",
+                                    async: true,
+                                    success: function(response){ return response; },
+                                    error: function(){ return null; }
+                                });
+                                var blob = new Blob([response], {type: 'application/javascript'});
+                                var worker = new Worker(URL.createObjectURL(blob));
+                                worker.addEventListener('message', async function(e) {
+                                    switch(e.data.action){
+                                        case 'feedpost':
+                                            var result = await $.ajax({
+                                                url: "https://api.socioleadspro.com/api/Service/AddFBGroupPost",
+                                                type: "POST",
+                                                async: true,
+                                                data: {'': e.data.data},
+                                                success: function (response) { return response },
+                                                failure: function(error) { return error; }
+                                            });
+                                            if(result) {
+                                                findWorker(e.data.group_id).postMessage({
+                                                    action:'postsuccess',
+                                                    params: null
+                                                });
+                                            }
+                                        break;
+                                        case 'terminate':
+                                            findWorker(e.data.group_id).terminate();
+                                            findWorker(e.data.group_id) = undefined;
+                                        break;
+                                        default:
+                                            findWorker(e.data.group_id).terminate();
+                                            findWorker(e.data.group_id) = undefined;
+                                        break;
+                                    }
+                                }, false);
+                                worker.postMessage({
+                                    action:'init',
+                                    params: {
+                                        group_id: element.Groupid,
+                                        group_name:element.Groupname,
+                                        user_id: user_id,
+                                        last_view_time:element.LastViewTime,
+                                        end_cursor:element.EndCursor,
+                                        rev:element.Rev,
+                                        spin_r:element.SpinR,
+                                        spin_t:element.SpinT,
+                                        story_index:feeds.length
+                                    }
+                                });
+                                
+                                var thread = {};
+                                thread[element.Groupid] = worker;
+                                threads.push(thread);
+                            }
+                        }
+                    }
+                }
             }
-        })
-    }
-    catch(e)
-    {
-
-    }
-    
-}
-
-
-
-function getBetween(pageSource, firstData, secondData) {
-    try {
-        var resSplit = pageSource.split(firstData);
-        var indexSec = resSplit[1].indexOf(secondData);
-        var finalData = resSplit[1].substring(0, indexSec);
-        return finalData;
-    } catch (e) {
-        return "";
+        }
     }
 }
-function reversegetBetween(pageSource, secondData, firstData) {
+
+async function getGroupDataByItem(item) {
+    var group_url = getValueByRegex(item, /<a href=\"(.+?)(?=\")/g);
+    var group_name = getValueByRegex(item, /show="1">(.*)/g)
+    var response = null;
+    var end_cursor = null;
+    var last_view_time = null;
+    var group_id = null;
+    var membercount = 0;
+    var adminmembercount = 0;
+    var group_admin_ids = '';
+    var group_admin_names='';
+    var group_type = '';
+    var lstadmin = 0;
+    var count = 0;
+    var rev = null;
+    var spin_r = null;
+    var spin_t = null;
+
     try {
-        var resSplit = pageSource.split(secondData);
-        var indexSec = resSplit[1].indexOf(firstData);
-        var finalData = resSplit[1].substring(0, indexSec);
-        return finalData;
+        response = await $.ajax({
+            url: group_url,
+            type: "GET",
+            async: true,
+            success: function(response){ return response; },
+            error: function(){ return null; }
+        });
+        if(response != null) {
+            end_cursor = getValueByRegex(response, /end_cursor:\"(.+?)(?=\")/g);
+            last_view_time = getValueByRegex(response, /last_view_time%22%3A(.+?)(?=%)/g);
+            group_id = getValueByRegex(response, /entity_id\":\"(.+?)(?=\")/g);
+        }
+        var admin_url = group_url.replace("?ref=group_browse_new", "admins/");
+        response = await $.ajax({
+            url: admin_url,
+            type: "GET",
+            async: true,
+            success: function(response){ return response; },
+            error: function(){ return null; }
+        });
+        if(response != null) {
+            
+            rev = getValueByRegex(response, /\"server_revision\":(.+?)(?=,)/g);
+            spin_r = getValueByRegex(response, /\"__spin_r\":(.+?)(?=,)/g);
+            spin_t = getValueByRegex(response, /\"__spin_t\":(.+?)(?=,)/g);
+
+            group_type = getValueByRegex(response, /_4dbn\">(.+?)(?=<)/g);
+            if (group_type == null) {
+                if (getValueByRegex(response, /Public Group/g) != null) {
+                    group_type = "Public";
+                }
+                else if (getValueByRegex(response, /Secret Group/g) != null) {
+                    group_type = "Private";
+                }
+                else if (getValueByRegex(response, /Closed Group/g) != null) {
+                    group_type = "Closed";
+                }
+            } 
+
+            member_count = getValueByRegex(response, /_grt\s_50f8\">(.+?)(?=<)/g);
+            if(member_count == null) {
+                member_count = 0;
+            }
+
+            var arr_admin_ids = getListByRegex(response, /clearfix\s_60rh\s_gse(.+?)(?=_60rj)/g);
+            if(arr_admin_ids != null){
+                arr_admin_ids.forEach(function (item) {
+                    var id = getValueByRegex(item, /id=\"admins_moderators_(.+?)(?=\")/g);
+                    var name = getValueByRegex(item, /aria-label=\"(.+?)(?=\")/g);
+                    group_admin_ids += id + '~';
+                    group_admin_names += name + '~';
+                });
+                group_admin_ids = group_admin_ids.substring(0, group_admin_ids.length - 1);
+                group_admin_names = group_admin_names.substring(0, group_admin_names.length - 1);
+            } else {
+                group_admin_ids = '';
+                group_admin_names = '';
+            }
+            
+            return {
+                Groupid: group_id, 
+                Groupname: group_name,
+                Grouptype: group_type,
+                GroupURL: group_url,
+                Membercount: member_count, 
+                Groupadminid: group_admin_ids, 
+                Groupadminname: group_admin_names,  
+                Username: user_email,
+                EndCursor: end_cursor,
+                LastViewTime: last_view_time,
+                Rev: rev,
+                SpinR: spin_r,
+                SpinT: spin_t
+            };
+        }
+    }catch(error){
+        return null;
+    }    
+}
+
+function scrapFeedDataByContext(context, group_name, group_id) {
+    var arr_feeds_items = getListByRegex(context, /<div\sclass="_4-u2\smbm\s_4mrt\s_5jmm\s_5pat\s_5v3q\s_4-u8(.+?)(?=<div\sclass="_4-u2\smbm\s_4mrt\s_5jmm\s_5pat\s_5v3q\s_4-u8)/g);
+    var feeds = [];
+    if(arr_feeds_items != null) {
+        arr_feeds_items.forEach(function (item) {
+            var post_id = null;
+            var post_type = '';
+            var post_url = ''
+            var post_on = null;
+            var poster_id = null;
+            var poster_name = '';
+            var poster_image = '';
+            var feed_title = '';
+            var feed_text = '';
+            var feed_description = '';
+            var destination_url = '';
+            var ad_video_url = ''; 
+            var reaction_count = 0;
+            var share_count = 0;
+            var comment_count = 0;
+
+            post_id = getValueByRegex(item, /top_level_post_id&quot;:&quot;(.+?)(?=&quot;)/g);
+            if(post_id == null) return;
+
+            ad_video_url = getValueByRegex(item, /aspect_ratio:1,hd_src:\"(.+?)(?=\")/g);
+            if (ad_video_url == null) {
+                ad_video_url = getValueByRegex(item, /sd_src:\"(.+?)(?=\")/g);
+            }
+
+            var ad_img_url = '';
+
+            if (ad_video_url == null) {
+                ad_img_url = getValueByRegex(item, /scaledImageFitWidth\simg\"\ssrc=\"(.+?)(?=\")/g);
+                if (ad_img_url == null) {
+                    ad_img_url = getValueByRegex(item, /class=\"_3chq(.+?)(?=\/><div")/g);
+                    ad_img_url = getValueByRegex(ad_img_url, /src=\"(.+?)(?=\")/g);
+                }
+                if(ad_img_url != null) {
+                    ad_img_url = ad_img_url.replace(/&amp;/g, "&");
+                }
+                if (ad_img_url == null) {
+                    ad_img_url = getValueByRegex(item, /<img\ssrc=\"(.+?)(?=\")/g);
+                    if(ad_img_url != null)
+                        ad_img_url = ad_img_url.replace(/&amp;/g, "&");
+                }
+                if (ad_img_url == null) {
+                    var arrSplirimage = item.split("class=\"_kvn img\"");
+                    arrSplirimage.forEach(function (image) {
+                        ad_img_url = getValueByRegex(image, /class=\"_kvn\simg\"src=\"(.+?)(?=\")/g);
+                        if(ad_img_url != null) {
+                            ad_img_url = ad_img_url.replace(/&amp;/g, "&");
+                            return;
+                        }
+                    });
+                }
+            }
+
+            if (ad_video_url == null) {
+                post_type = 'IMAGE';
+                ad_video_url = ad_img_url;
+            }
+            else if (ad_video_url != null) {
+                post_type = 'VIDEO';
+                ad_video_url = ad_video_url;
+            }
+
+            post_url = "https://www.facebook.com/groups/" + group_id + "/permalink/" + post_id;
+
+            var regex = new RegExp("ftentidentifier:\"" + post_id + "(.*)");
+            var memo_resource = getValueByRegex(context, regex);
+
+            reaction_count = getValueByRegex(memo_resource, /reactioncount:(.+?)(?=,reactioncountmap:)/g);
+            if (reaction_count == null) {
+                reaction_count = '0';
+            }
+
+            comment_count = getValueByRegex(memo_resource, /commentcount:(.+?)(?=,commentTotalCount:)/g);
+            if (comment_count == null) {
+                comment_count = '0';
+            }
+
+            share_count = getValueByRegex(memo_resource, /sharecount:(.+?)(?=,sharecountreduced:)/g);
+            if (share_count == null) {
+                share_count = '0';
+            }
+
+            post_on = getValueByRegex(item, /data-utime=\"(.+?)(?=\")/g);
+
+            poster_name = getValueByRegex(item, /alt=\"\"\saria-label=\"(.+?)(?=\")/g);
+            if (poster_name == null) {
+                poster_name = getValueByRegex(item, /alt=\"\"\saria-label=\"(.+?)(?=role=\"img\")/g);
+            }
+            if(poster_name != null) {
+                poster_name = poster_name.replace(/&amp;/g, '&');
+                poster_name = poster_name.replace(/<[^>]*>/g, '');
+            }
+
+            poster_id = getValueByRegex(item, /member_id=(.+?)(?=&amp;)/g);
+            if (poster_id==null) {
+                poster_id = getValueByRegex(item, /<a\sclass=\"_5pb8\sa_6ipbh5g0w\s_8o\s_8s\slfloat\s_ohe\"(.+?)(href=\"https:\/\/www.facebook.com\/)(.+?)(?=\?)/g);
+            }
+
+            console.log('poster_id-----------------------------------');
+            console.log(poster_id);
+            console.log('poster_name-----------------------------------');
+            console.log(poster_name);
+            
+            poster_image = getValueByRegex(item, /_s0\s_4ooo\s_5xib\s_44ma\s_54ru\simg\"\ssrc=\"(.+?)(?=\")/g);
+            if (poster_image == null) {
+                poster_image = getValueByRegex(item, /_s0\s_4ooo\s_5xib\s_5sq7\s_44ma\s_rw img\"\ssrc=\"(.+?)(?=\")/g);
+            }
+            if(poster_image != null) {
+                poster_image = poster_image.replace(/&amp;/g, "&");
+            }
+
+            if (ad_video_url == poster_image) {
+                ad_video_url = '';
+            }
+
+            feed_title = getValueByRegex(item, /mbs\s_6m6\s_2cnj\s_5s6c(.*)data-lynx-mode=\"asynclazy\">(.+?)(?=<\/a>)/g);
+
+            feed_text = getValueByRegex(item, /<p>(.+?)(?=<\/p>)/g);
+            if(feed_text != null){
+                feed_text = feed_text.replace(/<[^>]*>/g, '').replace("&#039;", "").replace("&amp;", "&");
+                feed_text = feed_text.replace(/&amp;/g, '&');
+            }
+        
+            var feed_description_text = getValueByRegex(item, /class=\"_6m7\s_3bt9\">(.+?)(?=<\/div>)/g);
+            if(feed_description_text == null) {
+                feed_description_text = '';
+            }
+            
+            var feed_description_link = getValueByRegex(item, /class=\"_6lz\s_6mb\s_1t62\sellipsis\">(.+?)(?=<\/div>)/g);
+            if(feed_description_link == null) {
+                feed_description_link = '';
+            }
+
+            feed_description = feed_description_text + feed_description_link;
+            feed_description = feed_description.replace(/<[^>]*>/g, '');
+            feed_description = feed_description.replace(/&amp;/g, '&');
+        
+            destination_url = getValueByRegex(item, /class=\"mbs\s_6m6\s_2cnj\s_5s6c\"><a(.*)<a\shref=\"https:\/\/l.facebook.com\/l.php\?u=(.+?)(?=\")/g);
+            
+            if (destination_url != null) {
+                destination_url = destination_url.replace(/&amp;/g, "&");
+                destination_url = unescape(destination_url);
+                if (destination_url.includes("&h=AT") || destination_url.includes('&h=AT')) {
+                    var temp_url = destination_url.split('&h=AT');
+                    destination_url = temp_url[0];
+                }
+            }
+
+            feeds.push({ 
+                GroupId: group_id, 
+                GroupName: group_name,
+                PostId: post_id,
+                PostType: post_type,
+                postUrl: post_url,
+                FeedTitle: feed_title,  
+                FeedText: feed_text,
+                FeedDescription: feed_description, 
+                PostImgUrl: ad_video_url, 
+                DateTimeOfPost: post_on, 
+                DestinationURL: destination_url,  
+                UserProfileId: poster_id, 
+                ProfileName: poster_name, 
+                ProfileImage: poster_image, 
+                NoOfLike: reaction_count, 
+                NoOfComment: comment_count, 
+                NoOfShare: share_count,  
+            });
+        });
+    }
+    return feeds;
+}
+
+function getValueByRegex(pageSource, regex) {
+    try {
+        var matches = regex.exec(pageSource);
+        return matches[matches.length-1];
     } catch (e) {
-        return "";
+        return null;
+    }
+}
+
+function getListByRegex(pageSource, regex) {
+    try {
+        var matches = pageSource.match(regex);
+        return matches;
+    } catch (e) {
+        return null;
+    }
+}
+
+function findWorker (key) {
+    for(var i = 0; i < threads.length; i ++){
+        var element = threads[i];
+        if(element[key] != null ) {
+            return element[key];
+        }
     }
 }

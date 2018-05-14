@@ -8,9 +8,7 @@ var CSPWhitelist = [
   'npmjs.com',
   'flickr.com'
 ];
-debugger;
 var box = document.getElementById("sociob-toggle");
-debugger;
 if(box==null || box=='null' || box=='')
 {
 var extensionOrigin = 'chrome-extension://' + chrome.runtime.id;
